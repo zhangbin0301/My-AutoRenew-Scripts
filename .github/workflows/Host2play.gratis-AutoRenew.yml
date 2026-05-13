@@ -28,7 +28,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cloudflare-warp
           # 注册并连接（proxy 模式，不接管全局流量）
-          warp-cli registration new
+          warp-cli registration new --accept-tos
           warp-cli mode proxy
           warp-cli connect
           # 等待连接就绪
