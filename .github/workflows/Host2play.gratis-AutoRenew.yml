@@ -20,6 +20,30 @@ jobs:
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
           fetch-depth: 0
 
+      - name: Setup WARP
+        run: |
+          # 安装 Cloudflare WARP
+          curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | sudo gpg --yes --dearmor -o /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
+          sudo apt-get update
+          sudo apt-get install -y cloudflare-warp
+          # 注册并连接（proxy 模式，不接管全局流量）
+          warp-cli registration new
+          warp-cli mode proxy
+          warp-cli connect
+          # 等待连接就绪
+          for i in $(seq 1 15); do
+            if warp-cli status 2>/dev/null | grep -q "Connected"; then
+              echo "✅ WARP connected"
+              break
+            fi
+            echo "⏳ Waiting for WARP... ($i/15)"
+            sleep 2
+          done
+          # 验证：通过 WARP 代理访问（socks5://127.0.0.1:40000）
+          curl -x socks5h://127.0.0.1:40000 -sS https://cloudflare.com/cdn-cgi/trace | head -5
+          echo "WARP setup done"
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -27,7 +51,6 @@ jobs:
 
       - name: Install system dependencies
         run: |
-          sudo apt-get update
           sudo apt-get install -y xvfb ffmpeg
           # 安装 Google Chrome
           wget -q -O /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
@@ -36,20 +59,13 @@ jobs:
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install DrissionPage faster-whisper requests
-
-      - name: Pre-check API connectivity
-        run: |
-          echo "Testing host2play API..."
-          curl -sS -o /dev/null -w "HTTP %{http_code} | %{time_total}s" "${API_URL}" || echo "curl failed"
-          python3 -c "import requests; r=requests.get('${API_URL}',timeout=15); print(f'HTTP {r.status_code}: {r.text[:300]}')"
-        env:
-          API_URL: https://host2play.gratis/publicapis/getServerData?i=b56972fd-2efd-4532-ac8b-b1a4e04ce6c4
+          pip install DrissionPage faster-whisper requests pysocks
 
       - name: Run renew script
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          ALL_PROXY: socks5h://127.0.0.1:40000
         run: xvfb-run --auto-servernum python3 renew_final.py
 
       - name: Upload debug artifacts
