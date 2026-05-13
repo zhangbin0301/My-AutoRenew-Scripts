@@ -38,6 +38,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install DrissionPage faster-whisper requests
 
+      - name: Pre-check API connectivity
+        run: |
+          echo "Testing host2play API..."
+          curl -sS -o /dev/null -w "HTTP %{http_code} | %{time_total}s" "${API_URL}" || echo "curl failed"
+          python3 -c "import requests; r=requests.get('${API_URL}',timeout=15); print(f'HTTP {r.status_code}: {r.text[:300]}')"
+        env:
+          API_URL: https://host2play.gratis/publicapis/getServerData?i=b56972fd-2efd-4532-ac8b-b1a4e04ce6c4
+
       - name: Run renew script
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
