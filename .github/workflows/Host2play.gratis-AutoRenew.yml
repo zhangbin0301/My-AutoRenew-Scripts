@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   renew:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout
@@ -20,31 +20,12 @@ jobs:
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
           fetch-depth: 0
 
-      - name: Setup WARP
-        continue-on-error: true
+      - name: Install WARP
         run: |
-          # 安装 Cloudflare WARP
-          curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | sudo gpg --yes --dearmor -o /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
-          echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
+          curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | sudo gpg --yes --dearmor --output /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+          echo "deb [arch=amd64 signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
           sudo apt-get update
           sudo apt-get install -y cloudflare-warp
-          # 注册并连接（proxy 模式，不接管全局流量）
-          # --accept-tos 是全局参数，放在子命令前面
-          warp-cli --accept-tos registration new
-          warp-cli mode proxy
-          warp-cli --accept-tos connect
-          # 等待连接就绪
-          for i in $(seq 1 15); do
-            if warp-cli status 2>/dev/null | grep -q "Connected"; then
-              echo "✅ WARP connected"
-              break
-            fi
-            echo "⏳ Waiting for WARP... ($i/15)"
-            sleep 2
-          done
-          # 验证：通过 WARP 代理访问（socks5://127.0.0.1:40000）
-          curl -x socks5h://127.0.0.1:40000 -sS https://cloudflare.com/cdn-cgi/trace | head -5
-          echo "WARP setup done"
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -54,7 +35,6 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get install -y xvfb ffmpeg
-          # 安装 Google Chrome
           wget -q -O /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
           sudo dpkg -i /tmp/chrome.deb || sudo apt-get install -f -y
 
@@ -63,12 +43,25 @@ jobs:
           python -m pip install --upgrade pip
           pip install DrissionPage faster-whisper requests pysocks
 
+      - name: Connect WARP
+        continue-on-error: true
+        run: |
+          warp-cli --accept-tos registration new
+          warp-cli --accept-tos mode proxy
+          warp-cli --accept-tos connect
+          sleep 2
+          warp-cli --accept-tos status
+
       - name: Run renew script
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           ALL_PROXY: socks5h://127.0.0.1:40000
         run: xvfb-run --auto-servernum python3 renew_final.py
+
+      - name: Disconnect WARP
+        if: always()
+        run: warp-cli --accept-tos disconnect || true
 
       - name: Upload debug artifacts
         uses: actions/upload-artifact@v4
