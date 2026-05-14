@@ -21,6 +21,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup WARP
+        continue-on-error: true
         run: |
           # 安装 Cloudflare WARP
           curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | sudo gpg --yes --dearmor -o /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
@@ -28,9 +29,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cloudflare-warp
           # 注册并连接（proxy 模式，不接管全局流量）
-          yes | warp-cli registration new
+          # --accept-tos 是全局参数，放在子命令前面
+          warp-cli --accept-tos registration new
           warp-cli mode proxy
-          warp-cli connect
+          warp-cli --accept-tos connect
           # 等待连接就绪
           for i in $(seq 1 15); do
             if warp-cli status 2>/dev/null | grep -q "Connected"; then
