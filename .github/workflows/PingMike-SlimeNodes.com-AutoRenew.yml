@@ -45,40 +45,82 @@ jobs:
         run: npx playwright install chromium --with-deps
 
       # =========================
-      # 🛡️ 启动 GOST
+      # 🛡️ 启动代理服务 (GOST / Hysteria 2)
       # =========================
-      - name: 🛡️ 启动 GOST
+      - name: 🛡️ 启动代理服务 (GOST / Hysteria 2)
         if: ${{ env.SLIME_GOST_PROXY != '' }}
         env:
           SLIME_GOST_PROXY: ${{ secrets.SLIME_GOST_PROXY }}
         run: |
+          PROXY_URL="${{ secrets.SLIME_GOST_PROXY }}"
+          if [[ "$PROXY_URL" == socks://* ]]; then
+            PROXY_URL="socks5://${PROXY_URL#socks://}"
+          fi
+          if [[ "$PROXY_URL" == hy2://* ]]; then
+            echo "⚡ 检测到 Hysteria 2 代理，正在配置 Hysteria 2 客户端..."
+            
+            # 下载 Hysteria 2 客户端
+            HY_VERSION="v2.6.0"
+            echo "📦 下载 Hysteria 2 $HY_VERSION..."
+            wget -q "https://github.com/apernet/hysteria/releases/download/app%2F${HY_VERSION}/hysteria-linux-amd64" -O hysteria
+            chmod +x hysteria
+            
+            # 使用 Node.js 解析并生成 yaml 配置文件
+            PROXY_URL="$PROXY_URL" node -e '
+            try {
+              const url = new URL(process.env.PROXY_URL);
+              const password = decodeURIComponent(url.username || url.password || "");
+              const server = url.host;
+              const insecure = url.searchParams.get("insecure") === "1" || url.searchParams.get("insecure") === "true";
+              const sni = url.searchParams.get("sni") || "";
+              
+              const yaml = [
+                `server: ${server}`,
+                `auth: ${password}`,
+                `http:`,
+                `  listen: 127.0.0.1:8080`,
+                `tls:`,
+                `  insecure: ${insecure}`
+              ];
+              if (sni) {
+                yaml.push(`  sni: ${sni}`);
+              }
+              
+              const fs = require("fs");
+              fs.writeFileSync("hysteria.yaml", yaml.join("\n"));
+              console.log("✅ 成功生成 hysteria.yaml");
+            } catch (err) {
+              console.error("❌ 解析代理链接失败:", err.message);
+              process.exit(1);
+            }
+            '
+            
+            # 启动 Hysteria 2
+            nohup ./hysteria client -c hysteria.yaml > hysteria.log 2>&1 &
+            sleep 4
+            
+          else
+            echo "🛡️ 检测到普通代理，正在配置 GOST..."
+            VERSION=$(curl -s https://api.github.com/repos/ginuerzh/gost/releases/latest \
+              | grep '"tag_name"' | cut -d'"' -f4 | tr -d 'v')
+            
+            echo "📦 GOST VERSION: $VERSION"
+            wget -q "https://github.com/ginuerzh/gost/releases/download/v${VERSION}/gost_${VERSION}_linux_amd64.tar.gz"
+            tar -xzf "gost_${VERSION}_linux_amd64.tar.gz"
+            chmod +x gost
+            nohup ./gost \
+              -L http://:8080 \
+              -F "$PROXY_URL" \
+              > gost.log 2>&1 &
+            sleep 3
+          fi
 
-          VERSION=$(curl -s https://api.github.com/repos/ginuerzh/gost/releases/latest \
-            | grep '"tag_name"' | cut -d'"' -f4 | tr -d 'v')
-
-          echo "📦 GOST VERSION: $VERSION"
-
-          wget -q "https://github.com/ginuerzh/gost/releases/download/v${VERSION}/gost_${VERSION}_linux_amd64.tar.gz"
-
-          tar -xzf "gost_${VERSION}_linux_amd64.tar.gz"
-
-          chmod +x gost
-
-          nohup ./gost \
-            -L http://:8080 \
-            -F "$SLIME_GOST_PROXY" \
-            > gost.log 2>&1 &
-
-          sleep 3
-
-          echo "✅ 测试代理"
-
+          echo "✅ 测试本地代理端口 8080..."
           MASKED_IP=$(curl -s \
             -x http://127.0.0.1:8080 \
             https://api.ipify.org \
             | sed 's/\([0-9]*\.[0-9]*\)\..*/\1.**.**/g')
-
-          echo "$MASKED_IP"
+          echo "🌐 出口 IP: $MASKED_IP"
 
       # =========================
       # 🚀 执行续期
