@@ -20,7 +20,7 @@ jobs:
       - name: Checkout private repo (quartex_renew)
         uses: actions/checkout@v4
         with:
-          repository: ${{ github.repository_owner }}/Pingmike-QuartexNode.com-AutoRenew/
+          repository: ${{ github.repository_owner }}/Pingmike-QuartexNode.com-AutoRenew
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
           path: scripts
 
