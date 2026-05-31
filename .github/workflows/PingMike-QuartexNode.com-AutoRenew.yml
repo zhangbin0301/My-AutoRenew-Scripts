@@ -1,4 +1,4 @@
-name: Pingmike-QuartexNode.com-AutoRenew
+name: PingMike-QuartexNode.com-AutoRenew
 on:
   workflow_dispatch:
 
