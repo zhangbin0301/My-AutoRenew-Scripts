@@ -2,7 +2,7 @@ name: Robinson-Gaming4free.net-AutoRenew
  
 on:
   schedule:
-    - cron: '23 18 */2 * *'
+    - cron: '0 0,12 * * *'
   workflow_dispatch:
 
 jobs:
