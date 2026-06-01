@@ -1,4 +1,4 @@
-name: ModVC-Renew
+name: Luosi-ModVC.org-AutoRenew
 
 on:
   schedule:
