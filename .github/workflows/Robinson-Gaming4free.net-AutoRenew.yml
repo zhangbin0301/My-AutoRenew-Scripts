@@ -1,5 +1,5 @@
-name: G4F Server Auto Addtime v1
- 
+name: Robinson-Gaming4free.net-AutoRenew
+
 on:
   schedule:
     - cron: '2 */6 * * *'
