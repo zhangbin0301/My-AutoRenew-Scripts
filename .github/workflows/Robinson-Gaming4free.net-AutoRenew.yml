@@ -1,8 +1,8 @@
-name: Robinson-Gaming4free.net-AutoRenew
+name: G4F Server Auto Addtime v1
  
 on:
   schedule:
-    - cron: '0 21,9 * * *'
+    - cron: '2 */6 * * *'
   workflow_dispatch:
 
 jobs:
@@ -12,7 +12,7 @@ jobs:
       - name: 📥 下载私库脚本
         uses: actions/checkout@v4
         with:
-          repository: ${{ github.repository_owner }}/Robinson-Gaming4free.net-AutoRenew
+          repository: ${{ github.repository_owner }}/g4f-addtime-private
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
           path: private
 
@@ -35,6 +35,7 @@ jobs:
           # 3. 安装虚拟显示器
           sudo apt-get update
           sudo apt-get install -y xvfb
+          sudo apt-get install -y chromium-browser
 
       - name: 安装并配置 Cloudflare WARP CLI
         run: |
